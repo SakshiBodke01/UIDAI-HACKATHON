@@ -18,25 +18,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Google Drive file IDs mapping
-GDRIVE_FILES = {
-    "enrolment": "1cdQM1TGvlg_ed1PhahwaxQbnHeHW1tbm",
-    "biometric": "1FCoAmEtzposGd4VgNyeI_I_jwZWhwzGe",
-    "demographic": "1VXQ61eDwrmeVML31g_ubPU__LSPE6FWu"
-}
-
-@st.cache_data
-def load_from_gdrive(file_id):
-    """Load CSV from Google Drive using file ID"""
-    try:
-        download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
-        response = requests.get(download_url)
-        response.raise_for_status()
-        return pd.read_csv(BytesIO(response.content))
-    except Exception as e:
-        st.error(f"Error loading file from Google Drive: {e}")
-        return None
-
 # UIDAI Official Color Scheme CSS 
 st.markdown("""
 <style>
@@ -216,7 +197,7 @@ st.markdown("""
 # Enhanced Title Banner
 st.markdown("""
     <div class="main-header">
-        <h1>🇮🇳 UIDAI Insights Dashboard</h1>
+        <h1> UIDAI Insights Dashboard</h1>
         <h3>
             <span class="logo-badge">📊 Analytics</span>
             <span class="logo-badge">🔍 Anomaly Detection</span>
@@ -226,6 +207,28 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# Google Drive file IDs mapping
+GDRIVE_FILES = {
+    "enrolment": "1cdQM1TGvlg_ed1PhahwaxQbnHeHW1tbm",
+    "biometric": "1FCoAmEtzposGd4VgNyeI_I_jwZWhwzGe",
+    "demographic": "1VXQ61eDwrmeVML31g_ubPU__LSPE6FWu"
+}
+
+def get_gdrive_download_url(file_id):
+    """Convert Google Drive file ID to direct download URL"""
+    return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+@st.cache_data
+def load_data_from_gdrive(file_id, dataset_type):
+    """Load CSV data from Google Drive"""
+    try:
+        url = get_gdrive_download_url(file_id)
+        df = pd.read_csv(url)
+        return load_dataset(df, dataset_type, from_dataframe=True)
+    except Exception as e:
+        st.error(f"Error loading data from Google Drive: {e}")
+        return None
+
 # Sidebar
 st.sidebar.markdown("## ⚙️ Dashboard Controls")
 st.sidebar.markdown("---")
@@ -233,10 +236,8 @@ st.sidebar.markdown("---")
 dataset_type = st.sidebar.selectbox(
     "📁 Dataset Type", 
     ["enrolment", "biometric", "demographic"],
-    help="Select the type of dataset to analyze (loaded from Google Drive)"
+    help="Select the type of dataset to analyze"
 )
-
-st.sidebar.info(f"📍 Data Source: Google Drive\n\nFile ID: {GDRIVE_FILES[dataset_type][:20]}...")
 
 st.sidebar.markdown("### 🎯 Analysis Parameters")
 anomaly_threshold = st.sidebar.slider("🚨 Anomaly Sensitivity", 1.5, 4.0, 2.5, 0.1)
@@ -244,19 +245,13 @@ ma_window = st.sidebar.slider("📉 Smoothing Window", 3, 30, 7, 1)
 forecast_steps = st.sidebar.slider("🔮 Forecast Horizon", 3, 30, 7, 1)
 
 # Load data from Google Drive
+file_id = GDRIVE_FILES[dataset_type]
 with st.spinner(f"Loading {dataset_type} data from Google Drive..."):
-    df = load_from_gdrive(GDRIVE_FILES[dataset_type])
-    
-if df is None:
-    st.error(f"❌ Failed to load {dataset_type} data from Google Drive")
-    st.stop()
+    df = load_data_from_gdrive(file_id, dataset_type)
 
-# Apply preprocessing if load_dataset function exists
-try:
-    df = load_dataset(df, dataset_type)
-except:
-    # If load_dataset doesn't work with DataFrame, use df directly
-    pass
+if df is None:
+    st.error(f"❌ Failed to load data from Google Drive")
+    st.stop()
 
 df = cache_df(df)
 metric_col = {'enrolment': 'total_enrolment', 'biometric': 'total_biometric', 'demographic': 'total_demographic'}[dataset_type]
@@ -476,4 +471,4 @@ with tab5:
             st.download_button("⬇️ Download Time Series", ts_csv, "uidai_timeseries.csv", "text/csv")
 
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: #666;'>🇮🇳 UIDAI Data Hackathon 2026 </p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #666;'> UIDAI Data Hackathon 2026 </p>", unsafe_allow_html=True)
