@@ -3,6 +3,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from io import BytesIO
+import requests
 
 from preprocess import load_dataset
 from utils import inject_css, kpi_row, cache_df
@@ -16,6 +17,25 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Google Drive file IDs mapping
+GDRIVE_FILES = {
+    "enrolment": "1cdQM1TGvlg_ed1PhahwaxQbnHeHW1tbm",
+    "biometric": "1FCoAmEtzposGd4VgNyeI_I_jwZWhwzGe",
+    "demographic": "1VXQ61eDwrmeVML31g_ubPU__LSPE6FWu"
+}
+
+@st.cache_data
+def load_from_gdrive(file_id):
+    """Load CSV from Google Drive using file ID"""
+    try:
+        download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        response = requests.get(download_url)
+        response.raise_for_status()
+        return pd.read_csv(BytesIO(response.content))
+    except Exception as e:
+        st.error(f"Error loading file from Google Drive: {e}")
+        return None
 
 # UIDAI Official Color Scheme CSS 
 st.markdown("""
@@ -196,7 +216,7 @@ st.markdown("""
 # Enhanced Title Banner
 st.markdown("""
     <div class="main-header">
-        <h1> UIDAI Insights Dashboard</h1>
+        <h1>🇮🇳 UIDAI Insights Dashboard</h1>
         <h3>
             <span class="logo-badge">📊 Analytics</span>
             <span class="logo-badge">🔍 Anomaly Detection</span>
@@ -213,26 +233,30 @@ st.sidebar.markdown("---")
 dataset_type = st.sidebar.selectbox(
     "📁 Dataset Type", 
     ["enrolment", "biometric", "demographic"],
-    help="Select the type of dataset to analyze"
+    help="Select the type of dataset to analyze (loaded from Google Drive)"
 )
-default_path = {
-    "enrolment": "data/processed/enrollment_clean.csv",
-    "biometric": "data/processed/biometric_clean.csv",
-    "demographic": "data/processed/demographic_clean.csv"
-}[dataset_type]
 
-file_path = st.sidebar.text_input("📂 CSV Path", default_path)
+st.sidebar.info(f"📍 Data Source: Google Drive\n\nFile ID: {GDRIVE_FILES[dataset_type][:20]}...")
+
 st.sidebar.markdown("### 🎯 Analysis Parameters")
 anomaly_threshold = st.sidebar.slider("🚨 Anomaly Sensitivity", 1.5, 4.0, 2.5, 0.1)
 ma_window = st.sidebar.slider("📉 Smoothing Window", 3, 30, 7, 1)
 forecast_steps = st.sidebar.slider("🔮 Forecast Horizon", 3, 30, 7, 1)
 
-# Load data
-try:
-    df = load_dataset(file_path, dataset_type)
-except FileNotFoundError:
-    st.error(f"❌ File not found: {file_path}")
+# Load data from Google Drive
+with st.spinner(f"Loading {dataset_type} data from Google Drive..."):
+    df = load_from_gdrive(GDRIVE_FILES[dataset_type])
+    
+if df is None:
+    st.error(f"❌ Failed to load {dataset_type} data from Google Drive")
     st.stop()
+
+# Apply preprocessing if load_dataset function exists
+try:
+    df = load_dataset(df, dataset_type)
+except:
+    # If load_dataset doesn't work with DataFrame, use df directly
+    pass
 
 df = cache_df(df)
 metric_col = {'enrolment': 'total_enrolment', 'biometric': 'total_biometric', 'demographic': 'total_demographic'}[dataset_type]
@@ -452,4 +476,4 @@ with tab5:
             st.download_button("⬇️ Download Time Series", ts_csv, "uidai_timeseries.csv", "text/csv")
 
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: #666;'> UIDAI Data Hackathon 2026 </p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #666;'>🇮🇳 UIDAI Data Hackathon 2026 </p>", unsafe_allow_html=True)
