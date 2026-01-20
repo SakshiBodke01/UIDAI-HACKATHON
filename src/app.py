@@ -3,7 +3,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from io import BytesIO
-import requests
 
 from preprocess import load_dataset
 from utils import inject_css, kpi_row, cache_df
@@ -207,28 +206,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Google Drive file IDs mapping
-GDRIVE_FILES = {
-    "enrolment": "1cdQM1TGvlg_ed1PhahwaxQbnHeHW1tbm",
-    "biometric": "1FCoAmEtzposGd4VgNyeI_I_jwZWhwzGe",
-    "demographic": "1VXQ61eDwrmeVML31g_ubPU__LSPE6FWu"
-}
-
-def get_gdrive_download_url(file_id):
-    """Convert Google Drive file ID to direct download URL"""
-    return f"https://drive.google.com/uc?export=download&id={file_id}"
-
-@st.cache_data
-def load_data_from_gdrive(file_id, dataset_type):
-    """Load CSV data from Google Drive"""
-    try:
-        url = get_gdrive_download_url(file_id)
-        df = pd.read_csv(url)
-        return load_dataset(df, dataset_type, from_dataframe=True)
-    except Exception as e:
-        st.error(f"Error loading data from Google Drive: {e}")
-        return None
-
 # Sidebar
 st.sidebar.markdown("## ⚙️ Dashboard Controls")
 st.sidebar.markdown("---")
@@ -238,19 +215,23 @@ dataset_type = st.sidebar.selectbox(
     ["enrolment", "biometric", "demographic"],
     help="Select the type of dataset to analyze"
 )
+default_path = {
+    "enrolment": "data/processed/enrollment_clean.csv",
+    "biometric": "data/processed/biometric_clean.csv",
+    "demographic": "data/processed/demographic_clean.csv"
+}[dataset_type]
 
+file_path = st.sidebar.text_input("📂 CSV Path", default_path)
 st.sidebar.markdown("### 🎯 Analysis Parameters")
 anomaly_threshold = st.sidebar.slider("🚨 Anomaly Sensitivity", 1.5, 4.0, 2.5, 0.1)
 ma_window = st.sidebar.slider("📉 Smoothing Window", 3, 30, 7, 1)
 forecast_steps = st.sidebar.slider("🔮 Forecast Horizon", 3, 30, 7, 1)
 
-# Load data from Google Drive
-file_id = GDRIVE_FILES[dataset_type]
-with st.spinner(f"Loading {dataset_type} data from Google Drive..."):
-    df = load_data_from_gdrive(file_id, dataset_type)
-
-if df is None:
-    st.error(f"❌ Failed to load data from Google Drive")
+# Load data
+try:
+    df = load_dataset(file_path, dataset_type)
+except FileNotFoundError:
+    st.error(f"❌ File not found: {file_path}")
     st.stop()
 
 df = cache_df(df)
